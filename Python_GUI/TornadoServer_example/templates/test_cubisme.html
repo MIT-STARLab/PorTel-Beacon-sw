@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Laser Control</title>
+<style>
+
+@import url(//fonts.googleapis.com/css?family=Yanone+Kaffeesatz:400,700);
+
+#graph-optical { min-height: 10px;}
+#graph-TEC { min-height: 10px;}
+#graph-temperatures { min-height: 10px;}
+
+
+</style>
+<body>
+
+<div id="body">
+
+<h1>Seed Laser</h1>
+
+<h2 id="status">Connecting ...</h2>
+
+<div id="graph-block">
+
+Laser Driver
+<div id="graph-optical"></div>
+
+Thermo-electric Cooler
+<div id="graph-TEC"></div>
+
+Board Temperatures
+<div id="graph-temperatures"></div>
+
+</div>
+
+<div id="control-current">
+<button id="current_switch" class="button color-3" onclick="onclickbtn('current_switch')">Current Source (Error)</button>
+<div id="current-slider"></div>
+</div>
+
+<div id="control-bias">
+<button id="bias_switch" class="button color-3" onclick="onclickbtn('bias_switch')">Bias (Error)</button>
+<div id="bias-slider"></div>
+</div>
+
+<div id="control-TEC">
+<button id="TEC_switch" class="button color-3" onclick="onclickbtn('TEC_switch')">TEC (Error)</button>
+<div id="TEC-slider"></div>
+</div>
+
+<h3>Built with <a href="https://square.github.io/cubism/">Cubism.js</a> and <a href="https://simeydotme.github.io/jQuery-ui-Slider-Pips/">Slider Pips</a></h3>
+
+</div>
+
+<script src="../static/d3.v2.js"></script>
+<script src="../static/cubism.v1.js"></script>
+
+<script src="../static/jquery-ui-1.12.1.custom/external/jquery/jquery.js"></script>
+<script src="../static/jquery-ui-1.12.1.custom/jquery-ui.js"></script>
+<link rel="stylesheet" href="../static/jquery-ui-1.12.1.custom/jquery-ui.css">
+<script src="../static/jquery-ui-slider-pips.js"></script>
+<link rel="stylesheet" href="../static/jquery-ui-slider-pips.css">
+
+<link rel="stylesheet" href="../static/style.css">
+
+<script>
+
+var loc = window.location, new_uri;
+if (loc.protocol === "https:") {
+    new_uri = "wss:";
+} else {
+    new_uri = "ws:";
+}
+new_uri += "//" + loc.host;
+new_uri += loc.pathname + "ws";
+
+var ws = new WebSocket(new_uri);
+
+var metric_callbacks = {};
+
+ws.addEventListener("open", function() {
+    ws.send(JSON.stringify({
+        client: 'page'
+    }));})
+
+ws.onmessage = function(event) {
+    var pck = JSON.parse(event.data);
+    if (pck.hasOwnProperty("event")) {
+        if (pck["event"] == "connected") {
+            document.getElementById("status").innerHTML = pck["message"];
+            document.getElementById("status").style.color  = "#006600";
+        } else if (pck["event"] == "set button") {
+			document.getElementById(pck["btn name"]).innerHTML = pck["message"];
+			document.getElementById(pck["btn name"]).className = "button " + pck["color"];
+		}
+    }else if (pck.hasOwnProperty("name")) {
+        if (pck["name"] in metric_callbacks) {
+            metric_callbacks[pck["name"]](null, pck["data"]);
+            delete metric_callbacks[pck["name"]];
+        }
+    }
+};
+
+ws.onclose = function(event) {
+    document.getElementById("status").innerHTML = "Disconnected";
+    document.getElementById("status").style.color  = "#990000";
+};
+
+$("#current-slider")
+    .slider({
+        max: 500,
+        min: 0,
+        values: 0,
+        step:1
+    })
+    .slider("pips", {
+        rest: "label",
+        step: 5
+    });
+    
+$("#bias-slider")
+    .slider({
+        max: 0,
+        min: -5,
+        values: 0,
+        step: 0.01
+    })
+    .slider("pips", {
+        rest: "label",
+        step: 5
+    });
+    
+$("#TEC-slider")
+    .slider({
+        max: 100,
+        min: -60,
+        values: 20,
+        step:1
+    })
+    .slider("pips", {
+        rest: "label",
+        step:1
+    });
+
+function onclickbtn(button_name) {
+	function sendrequestbtn(button_name) {
+        ws.send(JSON.stringify({
+            'btn name': button_name
+        }));
+    }
+    
+    if (ws.readyState === WebSocket.OPEN) {
+        sendrequestbtn(button_name);
+    }
+    else {
+        ws.addEventListener("open", function() {sendrequestbtn(button_name)});
+    }
+}
+
+function python(name) {
+  var value = 0,
+      values = [],
+      i = 0,
+      last;
+  return context.metric(function(start, stop, step, callback) {
+    
+    function sendrequest(start, stop, step, callback) {
+        start = +start, stop = +stop, step = +step;
+        console
+        if (isNaN(last)) last = start;
+        ws.send(JSON.stringify({
+            name: name,
+            start: start,
+            stop: stop,
+            step: step
+        }));
+        
+        metric_callbacks[name] = callback;
+    }
+    
+    if (ws.readyState === WebSocket.OPEN) {
+        sendrequest(start, stop, step, callback);
+    }
+    else {
+        ws.addEventListener("open", function() {sendrequest(start, stop, step, callback)});
+    }
+  }, name);
+}
+
+function random(name) {
+  var value = 0,
+      values = [],
+      i = 0,
+      last;
+  return context.metric(function(start, stop, step, callback) {
+    start = +start, stop = +stop;
+    if (isNaN(last)) last = start;
+    
+    while (last < stop) {
+      last += step;
+      value = Math.max(-10, Math.min(10, value + .8 * Math.random() - .4 + .2 * Math.cos(i += .2)));
+      values.push(value);
+    }
+    callback(null, values = values.slice((start - stop) / step));
+  }, name);
+}
+
+</script>
+
+<script>
+
+var context = cubism.context()
+    .serverDelay(0)
+    .clientDelay(0)
+    .step(1e2)
+    .size(1500);
+    
+var laserISource = python("laser_current").multiply(25).add(250);
+    laserBias = random("laser_bias").multiply(0.25).add(-2.5);
+    optpower = random("optical_power").multiply(2).add(20);
+    comTEC = python("TEC_command").multiply(10);
+    voltageTEC = random("TEC_voltage").multiply(0.5);
+    currentTEC = random("TEC_current").multiply(100);
+    tempDAC = random("DAC_temp").multiply(8).add(20);
+    tempLASER = python("laser_temp").multiply(8).add(20);
+    tempISource = random("current_temp").multiply(8).add(20);
+
+d3.select("#graph-block").append("div")
+        .attr("class", "rule")
+        .call(context.rule());
+        
+d3.select("#graph-optical").call(function(div) {
+
+//    div.append("div")
+//        .attr("class", "axis")
+//        .call(context.axis().orient("top"));
+
+    div.append("div")
+        .attr("class", "horizon")
+        .attr("SIunit", "mA")
+        .call(context.horizon()
+            .metric(laserISource)
+            .height(50)
+            .title("Peak Laser Current")
+            .format(d3.format(".0f"))
+            .extent([0, 500]));
+            
+    div.append("div")
+        .attr("class", "horizon")
+        .attr("SIunit", "Vu")
+        .call(context.horizon()
+            .metric(laserBias)
+            .height(50)
+            .title("Laser Bias")
+            .format(d3.format(".2f"))
+            .extent([-5, 0]));
+        
+    div.append("div")
+        .attr("class", "horizon")
+        .attr("SIunit", "mW")
+        .call(context.horizon()
+            .metric(optpower)
+            .height(50)
+            .title("Average Optical Power")
+            .format(d3.format(".2f"))
+            .extent([0, 50]));
+      
+    div.append("div")
+        .attr("class", "axis")
+        .call(context.axis().orient("bottom"));
+
+});
+    
+d3.select("#graph-TEC").call(function(div) {
+  
+//  div.append("div")
+//      .attr("class", "axis")
+//      .call(context.axis().orient("top"));
+      
+    div.append("div")
+      .attr("class", "horizon")
+      .attr("SIunit", "pc")
+      .call(context.horizon()
+        .metric(comTEC)
+        .height(50)
+        .colors(['#e49689','#6baed6'])
+        .title("TEC Command")
+        .format(d3.format(".1f"))
+        .extent([-100, 100]));
+      
+  div.append("div")
+      .attr("class", "horizon")
+      .attr("SIunit", "Vu")
+      .call(context.horizon()
+        .metric(voltageTEC)
+        .height(50)
+        .colors(['#b22222','#ce6153','#e49689','#f5cac3', '#bdd7e7', '#6baed6', '#3182bd', '#08519c'])
+        .title("TEC Voltage")
+        .format(d3.format(".2f"))
+        .extent([-5, 5]));
+      
+  div.append("div")
+      .attr("class", "horizon")
+      .attr("SIunit", "mA")
+      .call(context.horizon()
+        .metric(currentTEC)
+        .height(50)
+        .colors(['#b22222','#ce6153','#e49689','#f5cac3', '#bdd7e7', '#6baed6', '#3182bd', '#08519c'])
+        .title("TEC Current")
+        .format(d3.format(".0f"))
+        .extent([-1000, 1000]));
+
+  div.append("div")
+      .attr("class", "horizon")
+      .attr("SIunit", "temp")
+      .call(context.horizon()
+        .metric(tempLASER)
+        .height(50)
+        .colors(['#313695', '#4575b4', '#74add1', '#abd9e9', '#fee090', '#fdae61', '#f46d43', '#d73027'])
+        .title("Laser Temperature")
+        .format(d3.format(".2f"))
+        .extent([-60, 100]));
+        
+    div.append("div")
+      .attr("class", "axis")
+      .call(context.axis().orient("bottom"));
+        
+});
+
+d3.select("#graph-temperatures").call(function(div) {
+  
+//    div.append("div")
+//        .attr("class", "axis")
+//        .call(context.axis().orient("top"));
+
+    div.append("div")
+        .attr("class", "horizon")
+        .attr("SIunit", "temp")
+        .call(context.horizon()
+            .metric(tempDAC)
+            .height(50)
+            .colors(['#313695', '#4575b4', '#74add1', '#abd9e9', '#fee090', '#fdae61', '#f46d43', '#d73027'])
+            .title("DAC Die Temperature")
+            .format(d3.format(".2f"))
+            .extent([-60, 100]));
+        
+    div.append("div")
+        .attr("class", "horizon")
+        .attr("SIunit", "temp")
+        .call(context.horizon()
+            .metric(tempISource)
+            .height(50)
+            .colors(['#313695', '#4575b4', '#74add1', '#abd9e9', '#fee090', '#fdae61', '#f46d43', '#d73027'])
+            .title("Current Source Temperature")
+            .format(d3.format(".2f"))
+            .extent([-60, 100]));
+
+        
+    div.append("div")
+        .attr("class", "axis")
+        .call(context.axis().orient("bottom"));
+            
+});
+
+// On mousemove, reposition the chart values to match the rule.
+context.on("focus", function(i) {
+  d3.selectAll(".value").style("right", i == null ? null : context.size() - i + "px");
+});
+
+</script>
