@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/PorTel_Pi_Code.iml" filepath="$PROJECT_DIR$/.idea/PorTel_Pi_Code.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../../test_scripts/.idea/test_scripts.iml" filepath="$PROJECT_DIR$/../../test_scripts/.idea/test_scripts.iml" />
     </modules>
   </component>
 </project>

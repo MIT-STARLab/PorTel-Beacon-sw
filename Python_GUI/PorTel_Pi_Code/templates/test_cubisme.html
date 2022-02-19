@@ -5,7 +5,7 @@
 
 @import url(//fonts.googleapis.com/css?family=Yanone+Kaffeesatz:400,700);
 
-#graph-optical { min-height: 10px;}
+#graph-laser { min-height: 10px;}
 #graph-TEC { min-height: 10px;}
 #graph-temperatures { min-height: 10px;}
 
@@ -15,36 +15,50 @@
 
 <div id="body">
 
-<h1>Seed Laser</h1>
+<h1>PorTel Beacon Board</h1>
 
 <h2 id="status">Connecting ...</h2>
 
-<div id="graph-block">
+<div id="status-lights">
+<button id="alert_indicator" class="button color-3" >System Status</button>
+<button id="laser_indicator" class="button color-3" >Laser Status</button>
+<button id="power_indicator" class="button color-3" >Power Status</button>
+<button id="comm_indicator" class="button color-3" >Comm Status</button>
+</div>
 
+<h2>Control Buttons</h2>
+<div id="buttons"></div>
+<button id="laser_switch" class="button color-3" onclick="onclickbtn('laser_switch')">Laser On/Off</button>
+<button id="TEC_switch" class="button color-3" onclick="onclickbtn('TEC_switch')">TEC On/Off</button>
+</div>
+
+<h2>Control Setpoint Sliders</h2>
+<div id="slider-block-temp">
+<p>Temperature Set Point [C]</p>
+<div id="temp-slider"></div>
+</div>
+
+<div id="slider-block-avg">
+<p>Average Optical Power Set Point [W]</p>
+<div id="avg-slider"></div>
+</div>
+
+<div id="slider-block-mod">
+<p>Optical Power Modulation Depth Set Point [W]</p>
+<div id="mod-slider"></div>
+</div>
+
+
+<div id="graph-block">
 Laser Driver
-<div id="graph-optical"></div>
+<div id="graph-laser"></div>
 
 Thermo-electric Cooler
 <div id="graph-TEC"></div>
 
-Board Temperatures
-<div id="graph-temperatures"></div>
-
 </div>
 
-<div id="laser-control">
-<button id="laser-switch" class="button color-3" onclick="onclickbtn('laser_switch')">Laser On/Off</button>
-</div>
 
-<div id="control-bias">
-<button id="bias_switch" class="button color-3" onclick="onclickbtn('bias_switch')">Bias (Error)</button>
-<div id="bias-slider"></div>
-</div>
-
-<div id="control-TEC">
-<button id="TEC_switch" class="button color-3" onclick="onclickbtn('TEC_switch')">TEC (Error)</button>
-<div id="TEC-slider"></div>
-</div>
 
 <h3>Built with <a href="https://square.github.io/cubism/">Cubism.js</a> and <a href="https://simeydotme.github.io/jQuery-ui-Slider-Pips/">Slider Pips</a></h3>
 
@@ -90,7 +104,11 @@ ws.onmessage = function(event) {
         } else if (pck["event"] == "set button") {
 			document.getElementById(pck["btn name"]).innerHTML = pck["message"];
 			document.getElementById(pck["btn name"]).className = "button " + pck["color"];
-		}
+		} else if (pck["event"] == "set slider") {
+            //What do we do to set slider?
+            //document.getElementById(pck["slider name"]).slider('value',pck["value"])
+            document.getElementById("temp-slider").value(pck["value"])
+        }
     }else if (pck.hasOwnProperty("name")) {
         if (pck["name"] in metric_callbacks) {
             metric_callbacks[pck["name"]](null, pck["data"]);
@@ -104,9 +122,10 @@ ws.onclose = function(event) {
     document.getElementById("status").style.color  = "#990000";
 };
 
-$("#current-slider")
+$("#temp-slider")
     .slider({
-        max: 500,
+        change: function(event,ui){onslidermove("temp_slider",ui)},
+        max: 50,
         min: 0,
         values: 0,
         step:1
@@ -116,29 +135,47 @@ $("#current-slider")
         step: 5
     });
     
-$("#bias-slider")
+$("#avg-slider")
     .slider({
-        max: 0,
-        min: -5,
+        change: function(event,ui){onslidermove("avg_slider",ui)},
+        max: 5,
+        min: 0,
         values: 0,
-        step: 0.01
+        step: 0.1
     })
     .slider("pips", {
         rest: "label",
         step: 5
     });
     
-$("#TEC-slider")
+$("#mod-slider")
     .slider({
-        max: 100,
-        min: -60,
-        values: 20,
-        step:1
+        change: function(event,ui){onslidermove("mod_slider",ui)},
+        max: 5,
+        min: 0,
+        values: 0,
+        step:0.1
     })
     .slider("pips", {
         rest: "label",
-        step:1
+        step:5
     });
+
+function onslidermove(slider_name, ui){
+    function sendrequestslider() {
+        ws.send(JSON.stringify({
+            'slider name': slider_name,
+            'value' : ui.value
+        }));
+    }
+
+    if (ws.readyState === WebSocket.OPEN) {
+        sendrequestslider();
+    }
+    else {
+        ws.addEventListener("open", function() {sendrequestslider()});
+    }
+}
 
 function onclickbtn(button_name) {
 	function sendrequestbtn(button_name) {
@@ -185,24 +222,6 @@ function python(name) {
   }, name);
 }
 
-function random(name) {
-  var value = 0,
-      values = [],
-      i = 0,
-      last;
-  return context.metric(function(start, stop, step, callback) {
-    start = +start, stop = +stop;
-    if (isNaN(last)) last = start;
-    
-    while (last < stop) {
-      last += step;
-      value = Math.max(-10, Math.min(10, value + .8 * Math.random() - .4 + .2 * Math.cos(i += .2)));
-      values.push(value);
-    }
-    callback(null, values = values.slice((start - stop) / step));
-  }, name);
-}
-
 </script>
 
 <script>
@@ -213,55 +232,60 @@ var context = cubism.context()
     .step(1e2)
     .size(1500);
     
-var laserISource = python("laser_current").multiply(25).add(250);
-    laserBias = random("laser_bias").multiply(0.25).add(-2.5);
-    optpower = random("optical_power").multiply(2).add(20);
-    comTEC = python("TEC_command").multiply(10);
-    voltageTEC = random("TEC_voltage").multiply(0.5);
-    currentTEC = random("TEC_current").multiply(100);
-    tempDAC = random("DAC_temp").multiply(8).add(20);
-    tempLASER = python("laser_temp").multiply(8).add(20);
-    tempISource = random("current_temp").multiply(8).add(20);
+var LaserIAVG = python("LaserIAVG");
+    LaserIPeak = python("LaserIPeak");
+    LaserPDAVG = python("LaserPDAVG");
+    LaserPDModulation = python("LaserPDModulation");
+    temp = python("temp");
+    TECV = python("TECV");
+    TECI = python("TECI");
+
 
 d3.select("#graph-block").append("div")
         .attr("class", "rule")
         .call(context.rule());
         
-d3.select("#graph-optical").call(function(div) {
-
-//    div.append("div")
-//        .attr("class", "axis")
-//        .call(context.axis().orient("top"));
+d3.select("#graph-laser").call(function(div) {
 
     div.append("div")
         .attr("class", "horizon")
-        .attr("SIunit", "mA")
+        .attr("SIunit", "Au")
         .call(context.horizon()
-            .metric(laserISource)
+            .metric(LaserIAVG)
             .height(50)
-            .title("Peak Laser Current")
-            .format(d3.format(".0f"))
-            .extent([0, 500]));
+            .title("Laser Drive Current Average")
+            .format(d3.format(".2f"))
+            .extent([0, 5]));
             
     div.append("div")
         .attr("class", "horizon")
-        .attr("SIunit", "Vu")
+        .attr("SIunit", "Au")
         .call(context.horizon()
-            .metric(laserBias)
+            .metric(LaserIPeak)
             .height(50)
-            .title("Laser Bias")
+            .title("Laser Drive Current Peak")
             .format(d3.format(".2f"))
-            .extent([-5, 0]));
+            .extent([0, 5]));
         
     div.append("div")
         .attr("class", "horizon")
         .attr("SIunit", "mW")
         .call(context.horizon()
-            .metric(optpower)
+            .metric(LaserPDAVG)
             .height(50)
             .title("Average Optical Power")
-            .format(d3.format(".2f"))
-            .extent([0, 50]));
+            .format(d3.format(".1f"))
+            .extent([0, 5000]));
+
+    div.append("div")
+    .attr("class", "horizon")
+    .attr("SIunit", "mW")
+    .call(context.horizon()
+        .metric(LaserPDModulation)
+        .height(50)
+        .title("Optical Modulation P2P")
+        .format(d3.format(".1f"))
+        .extent([0, 50]));
       
     div.append("div")
         .attr("class", "axis")
@@ -270,19 +294,15 @@ d3.select("#graph-optical").call(function(div) {
 });
     
 d3.select("#graph-TEC").call(function(div) {
-  
-//  div.append("div")
-//      .attr("class", "axis")
-//      .call(context.axis().orient("top"));
-      
+
     div.append("div")
       .attr("class", "horizon")
-      .attr("SIunit", "pc")
+      .attr("SIunit", "temp")
       .call(context.horizon()
-        .metric(comTEC)
+        .metric(temp)
         .height(50)
         .colors(['#e49689','#6baed6'])
-        .title("TEC Command")
+        .title("Laser Temperature")
         .format(d3.format(".1f"))
         .extent([-100, 100]));
       
@@ -290,7 +310,7 @@ d3.select("#graph-TEC").call(function(div) {
       .attr("class", "horizon")
       .attr("SIunit", "Vu")
       .call(context.horizon()
-        .metric(voltageTEC)
+        .metric(TECV)
         .height(50)
         .colors(['#b22222','#ce6153','#e49689','#f5cac3', '#bdd7e7', '#6baed6', '#3182bd', '#08519c'])
         .title("TEC Voltage")
@@ -301,63 +321,17 @@ d3.select("#graph-TEC").call(function(div) {
       .attr("class", "horizon")
       .attr("SIunit", "mA")
       .call(context.horizon()
-        .metric(currentTEC)
+        .metric(TECI)
         .height(50)
         .colors(['#b22222','#ce6153','#e49689','#f5cac3', '#bdd7e7', '#6baed6', '#3182bd', '#08519c'])
         .title("TEC Current")
         .format(d3.format(".0f"))
         .extent([-1000, 1000]));
-
-  div.append("div")
-      .attr("class", "horizon")
-      .attr("SIunit", "temp")
-      .call(context.horizon()
-        .metric(tempLASER)
-        .height(50)
-        .colors(['#313695', '#4575b4', '#74add1', '#abd9e9', '#fee090', '#fdae61', '#f46d43', '#d73027'])
-        .title("Laser Temperature")
-        .format(d3.format(".2f"))
-        .extent([-60, 100]));
         
     div.append("div")
       .attr("class", "axis")
       .call(context.axis().orient("bottom"));
         
-});
-
-d3.select("#graph-temperatures").call(function(div) {
-  
-//    div.append("div")
-//        .attr("class", "axis")
-//        .call(context.axis().orient("top"));
-
-    div.append("div")
-        .attr("class", "horizon")
-        .attr("SIunit", "temp")
-        .call(context.horizon()
-            .metric(tempDAC)
-            .height(50)
-            .colors(['#313695', '#4575b4', '#74add1', '#abd9e9', '#fee090', '#fdae61', '#f46d43', '#d73027'])
-            .title("DAC Die Temperature")
-            .format(d3.format(".2f"))
-            .extent([-60, 100]));
-        
-    div.append("div")
-        .attr("class", "horizon")
-        .attr("SIunit", "temp")
-        .call(context.horizon()
-            .metric(tempISource)
-            .height(50)
-            .colors(['#313695', '#4575b4', '#74add1', '#abd9e9', '#fee090', '#fdae61', '#f46d43', '#d73027'])
-            .title("Current Source Temperature")
-            .format(d3.format(".2f"))
-            .extent([-60, 100]));
-
-        
-    div.append("div")
-        .attr("class", "axis")
-        .call(context.axis().orient("bottom"));
-            
 });
 
 // On mousemove, reposition the chart values to match the rule.

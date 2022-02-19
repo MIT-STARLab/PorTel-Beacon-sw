@@ -2,10 +2,8 @@
  Interface with PorTel Beacon Board
  Nick Belsten
  First Created: 1-25-2022
- Most Recent Update: 1-25-2022
+ Most Recent Update: 2-3-2022
 */
-
-
 #include <PacketSerial.h>
 #include <Audio.h>
 #include <Wire.h>
@@ -17,9 +15,13 @@
 /*************** Prototypes  *********************/
 void onPacket(const byte* , size_t);
 void processPacket(const byte*);
+void fillPDPacket();
+void stopLaser();
+void getPDSample();
 float getPeakLaserP();
 float getTemp();
 void sendMyPacket();
+void watchdog();
 
 /*************** Constants *********************/
 //Pin Definitions
@@ -34,44 +36,72 @@ void sendMyPacket();
 
 //Constants definitions
 #define MOD_F 3000
-#define A_BITS 14
-#define PACKET_SIZE 530
+#define A_BITS 16
+#define PACKET_LENGTH 128 //Audio packet
 
 const float PD_R2P = 6.25;
-
+const float DR_R2I = 5.92;
 const float PDthresh = 6;
+const float TempThresh = 60.0;
+const float EPSILON = 0.0001; //Very small amplitude to keep stream running
 
-unsigned long LastComm;
+bool CommLoss=false;
 
 bool LaserOn=false;
+bool TECOn=false;
 bool Alert=false;
 
+struct SEND_PACKET_STRUCT{
+  bool Alert;
+  bool LaserOn;
+  bool TECOn;
+  byte laserStatus;
+  byte powerStatus;
+  bool commLoss;
+  byte dummy1;
+  byte dummy2;
+  float temp;
+  float TECI;
+  float TECV;
+  float LaserIAVG;
+  float LaserIModulation;
+  float PDPeak;
+  int16_t PDQueue[PACKET_LENGTH];
+  int16_t driverQueue[PACKET_LENGTH];
+};
+
+struct RECV_PACKET_STRUCT{
+  bool laserOn;
+  bool TECOn;
+  bool dummy1;
+  bool dummy2;
+  float tempSet;
+  float driveAmplitude;
+  float driveOffset;
+};
 
 // GUItool: begin automatically generated code
-AudioSynthWaveform       driver;      //xy=201.00000190734863,235.00000381469727
-AudioInputAnalog         PDadc;           //xy=225.00000381469727,376.0000057220459
-AudioSynthWaveformDc     shiftDC;  //xy=233.00000381469727,428.0000071525574
-AudioRecordQueue         driverQueue;         //xy=460.00000762939453,276.00000381469727
-AudioOutputAnalog        dac1;           //xy=461,236
-AudioMixer4              PDmixer;         //xy=469.00000762939453,394.00000381469727
-AudioAnalyzeFFT256       PDfft;       //xy=673.0000095367432,412.0000057220459
-AudioAnalyzePeak         PDpeak;          //xy=677.0000095367432,370.0000057220459
-AudioRecordQueue         PDqueue;         //xy=689.0000095367432,504.00000762939453
-AudioAnalyzeToneDetect   toneDetect;          //xy=692.0000095367432,455.0000057220459
+AudioSynthWaveform       driver;         //xy=182.00000762939453,208.00000762939453
+AudioRecordQueue         driverQueue;    //xy=441.00000762939453,249.00000762939453
+AudioOutputAnalog        dac1;           //xy=442.00000762939453,209.00000762939453
 AudioConnection          patchCord1(driver, dac1);
 AudioConnection          patchCord2(driver, driverQueue);
-AudioConnection          patchCord3(PDadc, 0, PDmixer, 0);
-AudioConnection          patchCord4(shiftDC, 0, PDmixer, 1);
-AudioConnection          patchCord5(PDmixer, PDpeak);
-AudioConnection          patchCord6(PDmixer, PDfft);
-AudioConnection          patchCord7(PDmixer, toneDetect);
-AudioConnection          patchCord8(PDmixer, PDqueue);
 // GUItool: end automatically generated code
 
-
+int16_t MyPDQueue[PACKET_LENGTH];
 
 static PacketSerial myPacketSerial;
+
 DAC myDAC=DAC(10);
+
+IntervalTimer AudioTimer;
+IntervalTimer WatchdogTimer;
+bool Steak;
+int AudioPacketFill;
+
+float DriveAmplitude;
+float DriveOffset;
+
 
 /*************** CODE!!!!!!  *********************/
 void setup() {
@@ -81,94 +111,158 @@ void setup() {
 
   analogReadResolution(A_BITS);
 
-  AudioMemory(150);
-  
-  PDmixer.gain(0,-1);
-  PDmixer.gain(1,1);
-  shiftDC.amplitude(1);
+  AudioMemory(100);
 
-  LastComm = millis();
+  driver.frequency(MOD_F);
+  driver.amplitude(EPSILON);
+  driver.offset(-1);
+  driver.begin(WAVEFORM_SINE);
+
+  WatchdogTimer.begin(watchdog,1000000);
+  WatchdogTimer.priority(10); //Higher than audio filling
   
-  driver.begin(0,WAVEFORM_SINE,MOD_F);
   dac1.analogReference(EXTERNAL);
-  
+
+  pinMode(V2PGD_P,INPUT);
+  pinMode(TECPGD_P,INPUT);
+  pinMode(TEMPIN_P,INPUT);
+  pinMode(PD_P,INPUT);
+  pinMode(TECI_P,INPUT);
+  pinMode(TECV_P,INPUT);
+  pinMode(TECPGD_P,INPUT);
+  pinMode(V2OVC_P,INPUT);
+  pinMode(TECSHDN_P,OUTPUT);
+  digitalWrite(TECSHDN_P,LOW);
 }
 
 void loop() {
   myPacketSerial.update();
 }
 
+void watchdog(){
+  if(LaserOn & !Steak){
+    CommLoss=true;
+    stopLaser();
+  }
+  Steak=false; //Dog ate steak, now needs a new one
+  return;
+}
+
 void onPacket(const byte* buffer, size_t size){
-  if(size!=14){
+  if(size!=sizeof(RECV_PACKET_STRUCT)){
     Serial.print("Bad packet length");
     return;
+  }else{
+    processPacket((RECV_PACKET_STRUCT*)buffer);
   }
-  processPacket(buffer);
   sendMyPacket();
+  Steak=true; //Watchdog gets new steak
 }
 
 //HERE start control functions
-void processPacket(const byte* packet){
-  memcpy(&LaserOn,&packet[0],1);
-  digitalWrite(TECSHDN_P,packet[1]);
-  digitalWrite(TECSHDN_P,packet[2]);
-  float temp;
-  memcpy(&temp,&packet[3],4);
-  short val = (short)((temp/70.0)*(2<<12));
-  myDAC.write(val);
-  float driveAmplitude, driveOffset;
-  memcpy(&driveAmplitude,&packet[7],4);
-  memcpy(&driveOffset,&packet[11],4);
-  driver.amplitude(driveAmplitude);
-  driver.offset(driveOffset);
+void processPacket(RECV_PACKET_STRUCT* myRecv){
+  LaserOn=myRecv->laserOn;
+  if(!LaserOn){stopLaser();}
+  
+  TECOn=myRecv->TECOn;
+  //Serial.print(TECOn);
+  digitalWrite(TECSHDN_P,TECOn); //Write high keeps it out of shutdown (inverse logic)
+
+  short shortval = (short)((myRecv->tempSet/70.0)*(1<<12)*2.5/3.3);
+  myDAC.write(shortval);
+  //Serial.print(shortval);
+  DriveAmplitude=myRecv->driveAmplitude;
+  DriveOffset=myRecv->driveOffset;
+
+  if(LaserOn){
+      if(abs(DriveAmplitude)<EPSILON){driver.amplitude(EPSILON);}
+      else{driver.amplitude(DriveAmplitude);}
+      driver.offset((DriveOffset*2)-1);
+  }
 }
 
+//Turns off the laser output
+void stopLaser(){
+  driver.amplitude(EPSILON);
+  driver.offset(-1);
+}
 
 //HERE starts packet making functions
 
+void getPDSample(){
+  if(AudioPacketFill<PACKET_LENGTH){
+    MyPDQueue[AudioPacketFill]=(analogRead(PD_P)*-1)+(1<<A_BITS);
+    AudioPacketFill++;
+  }else{
+    AudioTimer.end();
+  }
+  return;
+}
+
+void fillPDPacket(){
+  AudioPacketFill=0;
+  AudioTimer.begin(getPDSample,2.267);
+  while (AudioPacketFill<PACKET_LENGTH){delay(1);}
+  return;
+}
+
 //Get peak laser power as measured by photodiode
 float getPeakLaserP(){
-  return (PDpeak.read()*PD_R2P);  
+  int maxVal=0;
+   for (int i = 0; i < PACKET_LENGTH; i++) {
+      if (MyPDQueue[i] > maxVal) {
+         maxVal = MyPDQueue[i];
+      }
+   }
+   return maxVal;
 }
 
 //Get current laser temperature
 float getTemp(){
-  return ((float)analogRead(TEMPIN_P))*70.0/(2<<A_BITS);
+  return float(analogRead(TEMPIN_P))*70.0/(float(1<<A_BITS));
 }
 
 void sendMyPacket(){ 
   //Start filling the audio buffers in prep
-  PDqueue.begin();
   driverQueue.begin();
-  
-  float PDPeak = getPeakLaserP();
-  bool laserOverpower = (PDPeak>PDthresh);
-  bool laserOvercurrent = digitalRead(V2OVC_P);
-  bool pbad2V2 = digitalRead(V2PGD_P);
-  bool pbadTEC = digitalRead(TECPGD_P);
-  bool commLoss = (LaserOn && (millis()-LastComm)>500);
-  byte alertStatus = (laserOverpower<<0) | (laserOvercurrent<<1) | (pbad2V2<<2) | (pbadTEC<<3) | (commLoss<<4);
-  Alert = alertStatus;
-  float temp = getTemp();
-  float TECI = (((float)analogRead(TECI_P))/(2<<A_BITS)-0.5)*5.0;
-  float TECV = (((float)analogRead(TECV_P))/(2<<A_BITS)-0.5)*5.0;
-
   //Wait until we get at least on packet in the buffers
-  while(driverQueue.available()<1){delay(1);}
+
+  SEND_PACKET_STRUCT mySend;
+  fillPDPacket();
+
+  mySend.temp = getTemp();
   
-  byte mypacket[PACKET_SIZE];
-  mypacket[0]=(byte)Alert;
-  mypacket[1]=(byte)alertStatus;
-  memcpy(&mypacket[2],&temp,4);
-  memcpy(&mypacket[6],&TECI,4);
-  memcpy(&mypacket[10],&TECV,4);
-  memcpy(&mypacket[14],&PDPeak,4);
-  memcpy(&mypacket[18],PDqueue.readBuffer(),256);
-  memcpy(&mypacket[274],driverQueue.readBuffer(),256);
+  mySend.PDPeak = getPeakLaserP();
+  bool laserOvertemp = (mySend.temp>TempThresh);
+  bool laserOverpower = (mySend.PDPeak>PDthresh);
+  bool laserOvercurrent = digitalRead(V2OVC_P);
+  bool pbad2V2 = !digitalRead(V2PGD_P);
+  bool pbadTEC = !digitalRead(TECPGD_P);
+  mySend.laserStatus = (laserOvertemp<<2) | (laserOvercurrent<<1) | (laserOverpower<<0);
+  mySend.powerStatus =  (pbadTEC<<1) | (pbad2V2<<0);
+  mySend.commLoss = CommLoss;
+  mySend.Alert = (mySend.laserStatus || mySend.powerStatus || mySend.commLoss);
   
-  myPacketSerial.send(mypacket,PACKET_SIZE);
+  mySend.TECI = (float(analogRead(TECI_P)))/(float(1<<A_BITS)-0.5)*5.0;
+  mySend.TECV = (float(analogRead(TECV_P)))/(float(1<<A_BITS)-0.5)*5.0;
+  mySend.LaserIAVG = DriveOffset*DR_R2I;
+  mySend.LaserIModulation = DriveAmplitude*DR_R2I;
+  mySend.LaserOn=LaserOn;
+  mySend.TECOn=TECOn;
+
+  if(LaserOn){
+    while(driverQueue.available()<1){delay(1);}
+    //Serial.println(driverQueue.available());
+    memcpy(mySend.driverQueue,driverQueue.readBuffer(),sizeof(mySend.driverQueue));
+  }else{
+    for(int i=0;i<PACKET_LENGTH;i++){
+      mySend.driverQueue[i]=0;
+    }
+  }
+  
+  memcpy(mySend.PDQueue,MyPDQueue,sizeof(mySend.PDQueue));
+  //memcpy(mySend.driverQueue,driverQueue.readBuffer(),sizeof(mySend.driverQueue));
+
+  myPacketSerial.send((byte*)(&mySend),sizeof(SEND_PACKET_STRUCT));
+  //delay(500);
 }
-
-
-%Note: can do byte serialization by defining the struct and defining the union of the struct and byte array
-%OR can just cast the pointer to the struct as a pointer to a byte array (and use sizeof)

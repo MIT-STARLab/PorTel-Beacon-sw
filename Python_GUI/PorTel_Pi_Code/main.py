@@ -12,6 +12,8 @@ import numpy as np
 import os
 import json
 
+from Controller import Controller
+
 def error(text): print('Error: '+text)
 
 class MainHandler(tornado.web.RequestHandler):
@@ -24,12 +26,9 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
 
     def open(self):
         print("WebSocket opened")
-        #self.set_nodelay(True)
-        #ioloop to wait for 3 seconds before starting to send data
-        #tornado.ioloop.IOLoop.instance().add_timeout(datetime.timedelta(seconds=3), self.send_data)
 
     def on_message(self, message):
-        #self.write_message(u"You said: " + message)
+        #print(message)
         req = json.loads(message)
         
         if 'client' in req:
@@ -38,15 +37,30 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
             
         elif 'name' in req:
             if req['name'] in self.controller.metrics:
-                try: req['data'] = tuple(self.controller.metrics[req['name']].get(int(req['start']),int(req['stop']),int(req['step'])))
-                except: error('%s is an invalid metric request.'%str(req))
+                try:
+                    req['data'] = tuple(self.controller.metrics[req['name']].get(int(req['start']),int(req['stop']),int(req['step'])))
+                except KeyError: error('%s is an invalid metric request.'%str(req))
                 else: self.write_message(json.dumps(req))
             else:error('%s is not a valid metric name.'%req['name'])
             
         elif 'btn name' in req:
-            if req['btn name'] == 'bias_switch': self.controller.ToggleBias()
-            if req['btn name'] == 'current_switch': self.controller.ToggleCurrent()
+            if req['btn name'] == 'laser_switch': self.controller.ToggleLaser()
             if req['btn name'] == 'TEC_switch': self.controller.ToggleTEC()
+
+        elif 'slider name' in req:
+            if req['slider name'] == 'temp_slider':
+                self.controller.tempSet = float(req['value'])
+                self.set_slider(req['slider name'],float(req['value']))
+            if req['slider name'] == 'avg_slider': self.controller.requestAVG = float(req['value'])
+            if req['slider name'] == 'mod_slider': self.controller.requestAmplitude = float(req['value'])
+
+            #Make sure the slider gets updated in multiple tabs, use the button as template
+            #Be careful reading API, if you programatically update slider, ignore event if already at value
+
+        else:
+            print("Warning: Unprocessed message", message)
+
+        self.controller.GeneralUpdate()
             
 
     def on_close(self):
@@ -62,112 +76,23 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
         self.send_data({'event':'connected',
                         'message':'Connected to %s'%self.request.host})
         self.controller.AddSocket(self)
-        self.controller.UpdateAllStates()
-        
-    def set_current_button(self, text, color):
+        #self.controller.GeneralUpdate()
+
+    def set_indicator(self, ind_name,text,color):
         self.send_data({'event':'set button',
-                        'btn name':'current_switch',
+                        'btn name':ind_name,
                         'message':text,
                         'color':'color-%d'%color})
-                        
-    def set_bias_button(self, text, color):
-        self.send_data({'event':'set button',
-                        'btn name':'bias_switch',
-                        'message':text,
-                        'color':'color-%d'%color})
-                        
-    def set_TEC_button(self, text, color):
-        self.send_data({'event':'set button',
-                    'btn name':'TEC_switch',
-                    'message':text,
-                    'color':'color-%d'%color})
-        
-class Metric:
-    def __init__(self, length=10000):
-        self.length = length
-        self.data = np.zeros(length, dtype='f')
-        self.time = np.zeros(length, dtype='f')
-        self.index = 0
-        
-    def push(self,time, data):
-        if time < time[-1]:
-            error('Data pushed to metric with decreasing time')
-            return False
-        self.data = np.roll(self.data,-1)
-        self.time = np.roll(self.time,-1)
-        self.data[-1] = data
-        self.time[-1] = time
-        return True
 
-    def get(self,start,stop,step):
-        if step: requested_times = np.linspace(start,stop,int((stop-start)/step+1))
-        else: requested_times = start
-        return np.interp(requested_times,self.time,self.data,0,0)
-        
-class MetricSine:
-    def __init__(self,tau,phi):
-        self.tau = tau
-        self.phi = phi
-    
-    def get(self,start,stop,step):
-        if step: requested_times = np.linspace(start,stop,int((stop-start)/step+1))
-        else: requested_times = start
-        return 10*np.sin((requested_times*self.tau)/1000+self.phi)
+    def set_slider(self, slider_name,value):
+        print("Slider set called")
+        self.send_data({'event':'set slider',
+                        'slider name':slider_name,
+                        'value':value})
 
-class Controller:
-    def __init__(self):
-        self.off = 1 #black
-        self.on = 2 # green
-        self.error = 3 #orange
-        self.inop = 4 #red
-        
-        self.sockets = []
-    
-        self.metrics = {}
-        self.metrics['laser_current'] = MetricSine(0.1,0)
-        self.metrics['TEC_command'] = MetricSine(1,0)
-        self.metrics['laser_temp'] = MetricSine(1,1)
-        
-        # not set, off, on, error, inop
-        self.TEC_message  =    ('','TEC Disabled',           'TEC Enabled',           'SPI Error','Laser Thermal Shutdown')
-        self.bias_message =    ('','Bias set to 0 V',        'Bias Enabled',          'SPI Error','')
-        self.current_message = ('','Current Source Disabled','Current Source Enabled','SPI Error','Current Source Overheat')
-        
-        self.TEC_status = self.off
-        self.bias_status = self.off
-        self.current_status = self.off
-        
-    def AddSocket(self,ws):
-        self.sockets.append(ws)
-    
-    def RemoveSocket(self,ws):
-        self.sockets.remove(ws)
-        
-    def UpdateAllStates(self):
-        self.UpdateButtons()
-        
-    def UpdateButtons(self):
-        for ws in self.sockets:
-            ws.set_current_button(self.current_message[self.current_status],self.current_status)
-            ws.set_bias_button(self.bias_message[self.bias_status],self.bias_status)
-            ws.set_TEC_button(self.TEC_message[self.TEC_status],self.TEC_status)
-        
-    def ToggleCurrent(self):
-        if self.current_status == self.off: self.current_status = self.on
-        elif self.current_status == self.on: self.current_status = self.off
-        self.UpdateButtons()
-        
-    def ToggleBias(self):
-        if self.bias_status == self.off: self.bias_status = self.on
-        elif self.bias_status == self.on: self.bias_status = self.off
-        self.UpdateButtons()
-        
-    def ToggleTEC(self):
-        if self.TEC_status == self.off: self.TEC_status = self.on
-        elif self.TEC_status == self.on: self.TEC_status = self.off
-        self.UpdateButtons()
-        
+
 def make_app():
+    print("making")
     control_telemetry_server = Controller()
     return tornado.web.Application(
         [
