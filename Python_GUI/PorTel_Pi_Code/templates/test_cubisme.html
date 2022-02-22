@@ -255,7 +255,7 @@ d3.select("#graph-laser").call(function(div) {
             .height(50)
             .title("Laser Drive Current Average")
             .format(d3.format(".2f"))
-            .extent([0, 5]));
+            .extent([0, 10]));
             
     div.append("div")
         .attr("class", "horizon")
@@ -265,27 +265,27 @@ d3.select("#graph-laser").call(function(div) {
             .height(50)
             .title("Laser Drive Current Peak")
             .format(d3.format(".2f"))
-            .extent([0, 5]));
+            .extent([0, 10]));
         
     div.append("div")
         .attr("class", "horizon")
-        .attr("SIunit", "mW")
+        .attr("SIunit", "Wu")
         .call(context.horizon()
             .metric(LaserPDAVG)
             .height(50)
             .title("Average Optical Power")
-            .format(d3.format(".1f"))
-            .extent([0, 5000]));
+            .format(d3.format(".2f"))
+            .extent([0, 10]));
 
     div.append("div")
     .attr("class", "horizon")
-    .attr("SIunit", "mW")
+    .attr("SIunit", "Wu")
     .call(context.horizon()
         .metric(LaserPDModulation)
         .height(50)
         .title("Optical Modulation P2P")
-        .format(d3.format(".1f"))
-        .extent([0, 50]));
+        .format(d3.format(".2f"))
+        .extent([0, 10]));
       
     div.append("div")
         .attr("class", "axis")
@@ -301,12 +301,12 @@ d3.select("#graph-TEC").call(function(div) {
       .call(context.horizon()
         .metric(temp)
         .height(50)
-        .colors(['#e49689','#6baed6'])
+        .colors(['#6baed6','#e49689'])
         .title("Laser Temperature")
         .format(d3.format(".1f"))
-        .extent([-100, 100]));
+        .extent([-40, 70]));
       
-  div.append("div")
+  div.append("div") //Todo: better colors
       .attr("class", "horizon")
       .attr("SIunit", "Vu")
       .call(context.horizon()
@@ -317,16 +317,16 @@ d3.select("#graph-TEC").call(function(div) {
         .format(d3.format(".2f"))
         .extent([-5, 5]));
       
-  div.append("div")
+  div.append("div") //Todo: better colors
       .attr("class", "horizon")
-      .attr("SIunit", "mA")
+      .attr("SIunit", "A")
       .call(context.horizon()
         .metric(TECI)
         .height(50)
         .colors(['#b22222','#ce6153','#e49689','#f5cac3', '#bdd7e7', '#6baed6', '#3182bd', '#08519c'])
         .title("TEC Current")
-        .format(d3.format(".0f"))
-        .extent([-1000, 1000]));
+        .format(d3.format(".2f"))
+        .extent([-5.0, 5.0]));
         
     div.append("div")
       .attr("class", "axis")

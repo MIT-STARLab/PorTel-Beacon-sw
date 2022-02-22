@@ -50,7 +50,7 @@ class Controller:
         self.microcontroller=Microcontroller('COM5') #TBR
 
         #PID Controllers
-        self.pidAVG = PID(1,0.1,0.05, output_limits=(0, OUTPUT_LIMIT), setpoint=0)
+        self.pidAVG = PID(1,0.1,0.05, output_limits=(0, OUTPUT_LIMIT), setpoint=0) #Parameters TBR
         self.pidMod = PID(1, 0.1, 0.05, output_limits=(0, OUTPUT_LIMIT), setpoint=0)
 
         #Status for uC
@@ -84,9 +84,9 @@ class Controller:
             pdavg, pdamp = self.getPDstats(status["PDQueue"])
             self.driveAmplitude = self.pidAVG(pdavg)
             self.driveOffset = self.pidMod(pdamp)
-        else:
-            self.driveOffset = self.requestAVG/MAX_OPTICAL_POWER
-            self.driveAmplitude = self.requestAmplitude/MAX_OPTICAL_POWER
+        else: #If not using PID, simply use linearizing approximation
+            self.driveOffset = min(self.requestAVG/MAX_OPTICAL_POWER, OUTPUT_LIMIT)
+            self.driveAmplitude = min(self.requestAmplitude/MAX_OPTICAL_POWER, OUTPUT_LIMIT)
 
     #Updates the color and message of the four status buttons
     def UpdateIndicators(self,status):
@@ -100,10 +100,10 @@ class Controller:
             alertStatus = int(status["commLoss"])
             ws.set_indicator('comm_indicator', COMM_MESSAGES[alertStatus], alertStatus != 0)
 
-    #Extracts average and peak of the PD waveform
+    #Extracts average and peak of the PD waveform in Watts
     def getPDstats(self,PDqueue):
-        scale = (2**15)/6.25
-        return np.mean(PDqueue)*scale, (max(PDqueue)-min(PDqueue))*scale
+        scale = (2**16)/6.25
+        return np.mean(PDqueue)/scale, (max(PDqueue)-min(PDqueue))/scale
 
     def UpdateMetrics(self, status):
         pdavg, pdamp = self.getPDstats(status["PDQueue"])
@@ -111,7 +111,6 @@ class Controller:
         self.metrics["LaserPDAVG"].push(mytime, pdavg)
         self.metrics["LaserPDModulation"].push(mytime, pdamp)
         self.metrics["LaserIPeak"].push(mytime, status["LaserIAVG"] + status["LaserIModulation"]/2)
-        print("Laser I AVG", status["LaserIAVG"])
         for k in ("LaserIAVG","temp","TECI","TECV"):
             self.metrics[k].push(mytime, status[k])
 
@@ -142,16 +141,18 @@ class Controller:
         resdict["PDQueue"] = res[-AUDIO_PACKET_SIZE * 2:-AUDIO_PACKET_SIZE]
         resdict["driverQueue"] = res[-AUDIO_PACKET_SIZE:]
 
-        #print("Got ", resdict)
+        print(resdict)
+
+        self.laserOn=resdict["LaserOn"]
+        print(self.laserOn)
+        self.TECOn=resdict["TECOn"]
+        self.UpdateButtons()
 
         self.UpdateIndicators(resdict)
         self.UpdateMetrics(resdict)
         self.StepControllers(resdict)
 
         self.MessageCounter += 1
-
-        print("Temp Set: ", self.tempSet)
-
 
 #Microcontroller object adapter from https://github.com/igor47/spaceboard/blob/master/spaceteam.py
 class Microcontroller(object):
@@ -237,6 +238,6 @@ class Microcontroller(object):
   def transferData(self,mySend):
       self._send_packet(struct.pack(PACKET_SEND_FORMAT,*mySend)) #Unpack tuple and pack into struct and serialize
       mypacket=self._recv_packet()
-      print(mypacket)
+      #print(mypacket)
       return struct.unpack(PACKET_RECV_FORMAT,mypacket) #Return tuple
 

@@ -235,6 +235,17 @@ h1, h2, h3 {
     margin-left: 6px;
 }
 
+.horizon[SIunit=Au] .value:after {
+  content: "A";
+  margin-left: 6px;
+}
+
+.horizon[SIunit=Wu] .value:after {
+  content: "W";
+  margin-left: 6px;
+}
+
+
 .line {
   background: #000;
   opacity: .2;

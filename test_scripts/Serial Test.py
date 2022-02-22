@@ -82,7 +82,6 @@ class Microcontroller(object):
         self._read_buf[self._read_buf_pos] = c
         self._read_buf_pos += 1
 
-
         # ugh. buffer overflow. wat do?
         if self._read_buf_pos == len(self._read_buf):
           # resetting the buffer likely means the next recv will fail, too (we lost the start bits)
