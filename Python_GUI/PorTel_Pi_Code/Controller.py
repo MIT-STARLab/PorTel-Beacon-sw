@@ -10,7 +10,7 @@ import time
 import numpy as np
 from constants import PACKET_RECV_FORMAT, PACKET_SEND_FORMAT, PACKET_RECV_KEYS, ALERT_MESSAGES, LASER_MESSAGES,\
     COMM_MESSAGES, POWER_MESSAGES, TEC_ENABLE_MESSAGES, LASER_ENABLE_MESSAGES, METRICS_LIST, OUTPUT_LIMIT,\
-    MAX_OPTICAL_POWER, AUDIO_PACKET_SIZE, USE_PID
+    MAX_OPTICAL_POWER, AUDIO_PACKET_SIZE, USE_PID, POWER_CALIBRATION_MULTIPLIER
 
 
 class Metric:
@@ -46,17 +46,23 @@ class Metric:
             return requested_times * 0
 
 class Controller:
+
     def __init__(self):
+        self.last = time.time()
         self.microcontroller=Microcontroller('COM5') #TBR
 
         #PID Controllers
-        self.pidAVG = PID(1,0.1,0.05, output_limits=(0, OUTPUT_LIMIT), setpoint=0) #Parameters TBR
-        self.pidMod = PID(1, 0.1, 0.05, output_limits=(0, OUTPUT_LIMIT), setpoint=0)
+        my_sample_time = 0.05
+        self.pidAVG = PID(0.5,0.1,0.2, output_limits=(0, OUTPUT_LIMIT), setpoint=0, sample_time=my_sample_time) #Parameters TBR
+        self.pidAVGControls = np.zeros(50)
+        self.pidMod = PID(1, 0.1, 0.05, output_limits=(0, OUTPUT_LIMIT), setpoint=0, sample_time=my_sample_time)
+        self.pidTemp = PID(1,0.1,0.05, output_limits=(0,50),setpoint=20, sample_time=my_sample_time)
 
         #Status for uC
         self.laserOn=False
         self.TECOn=False
-        self.tempSet=25
+        self.tempSet=20
+        self.tempSetSend=20
         self.driveAmplitude=0 #0 to 1
         self.driveOffset=0    #0 to 1
 
@@ -78,15 +84,29 @@ class Controller:
         self.sockets.remove(ws)
 
     def StepControllers(self,status):
+        #print(time.time()-self.last)
+        self.last=time.time()
         if USE_PID:
-            self.pidAVG.setpoint = self.requestAVG/MAX_OPTICAL_POWER
-            self.pidMod.setpoint = self.requestAmplitude/MAX_OPTICAL_POWER
+            time.sleep(0.03)
+            self.pidAVG.setpoint = self.requestAVG
+            self.pidMod.setpoint = self.requestAmplitude
             pdavg, pdamp = self.getPDstats(status["PDQueue"])
-            self.driveAmplitude = self.pidAVG(pdavg)
-            self.driveOffset = self.pidMod(pdamp)
+            self.pidAVGControls = np.roll(self.pidAVGControls,1)
+            self.pidAVGControls[0] = self.pidAVG(pdavg)
+            self.driveOffset = np.mean(self.pidAVGControls)
+            print(pdavg,self.pidAVGControls[0],self.driveOffset)
+
+            self.driveAmplitude = self.pidMod(pdamp)
         else: #If not using PID, simply use linearizing approximation
             self.driveOffset = min(self.requestAVG/MAX_OPTICAL_POWER, OUTPUT_LIMIT)
             self.driveAmplitude = min(self.requestAmplitude/MAX_OPTICAL_POWER, OUTPUT_LIMIT)
+
+        if self.TECOn:
+            self.pidTemp.setpoint = self.tempSet
+            self.tempSetSend = self.pidTemp(status["temp"])
+            #print(self.tempSetSend)
+
+
 
     #Updates the color and message of the four status buttons
     def UpdateIndicators(self,status):
@@ -102,7 +122,7 @@ class Controller:
 
     #Extracts average and peak of the PD waveform in Watts
     def getPDstats(self,PDqueue):
-        scale = (2**16)/6.25
+        scale = (2**16)/6.25 / POWER_CALIBRATION_MULTIPLIER
         return np.mean(PDqueue)/scale, (max(PDqueue)-min(PDqueue))/scale
 
     def UpdateMetrics(self, status):
@@ -133,7 +153,7 @@ class Controller:
         return
 
     def GeneralUpdate(self):
-        toSend = (self.laserOn,self.TECOn,b'0',b'0',self.tempSet,self.driveAmplitude,self.driveOffset)
+        toSend = (self.laserOn,self.TECOn,b'0',b'0',self.tempSetSend,self.driveAmplitude,self.driveOffset)
         #print("Sending " , toSend)
         res = self.microcontroller.transferData(toSend)
 
@@ -141,10 +161,10 @@ class Controller:
         resdict["PDQueue"] = res[-AUDIO_PACKET_SIZE * 2:-AUDIO_PACKET_SIZE]
         resdict["driverQueue"] = res[-AUDIO_PACKET_SIZE:]
 
-        print(resdict)
+        #print(resdict)
 
         self.laserOn=resdict["LaserOn"]
-        print(self.laserOn)
+        #print(self.laserOn)
         self.TECOn=resdict["TECOn"]
         self.UpdateButtons()
 

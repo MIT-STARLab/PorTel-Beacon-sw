@@ -29,3 +29,5 @@ MAX_OPTICAL_POWER = 5 #Max optical power
 WATTS_PER_F = MAX_OPTICAL_POWER #Full scale optical power watts
 
 AMPS_PER_F = 5.9 #Full scale laser drive current
+
+POWER_CALIBRATION_MULTIPLIER = 1.77 #Should be 1 nominally. 1.77 for board 1
