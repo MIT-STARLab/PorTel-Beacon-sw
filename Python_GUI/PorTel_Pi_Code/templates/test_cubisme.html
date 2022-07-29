@@ -19,49 +19,55 @@
 
 <h2 id="status">Connecting ...</h2>
 
-<div id="status-lights">
-<button id="alert_indicator" class="button color-3" >System Status</button>
-<button id="laser_indicator" class="button color-3" >Laser Status</button>
-<button id="power_indicator" class="button color-3" >Power Status</button>
-<button id="comm_indicator" class="button color-3" >Comm Status</button>
-</div>
 
-<h2>Control Buttons</h2>
-<div id="buttons"></div>
-<button id="laser_switch" class="button color-3" onclick="onclickbtn('laser_switch')">Laser On/Off</button>
-<button id="TEC_switch" class="button color-3" onclick="onclickbtn('TEC_switch')">TEC On/Off</button>
-</div>
+<div class="flex-container">
 
-<h2>Control Setpoint Sliders</h2>
-<div id="slider-block-temp">
-<p>Temperature Set Point [C]</p>
-<div id="temp-slider"></div>
-</div>
+    <div id="status-lights" style="flex: 0 0 500px">
+        <h2>Indicators</h2>
+        <button id="alert_indicator" class="button color-3" >System Status</button>
+        <button id="laser_indicator" class="button color-3" >Laser Status</button>
+        <button id="power_indicator" class="button color-3" >Power Status</button>
+        <button id="comm_indicator" class="button color-3" >Comm Status</button>
+    </div>
 
-<div id="slider-block-avg">
-<p>Average Optical Power Set Point [W]</p>
-<div id="avg-slider"></div>
-</div>
+    <div id="buttons" style="flex: 0 0 500px">
+        <h2>Control Buttons</h2>
+        <button id="laser_switch" class="button button_cntr color-3" onclick="onclickbtn('laser_switch')">Laser On/Off</button><br>
+        <button id="TEC_switch" class="button button_cntr color-3" onclick="onclickbtn('TEC_switch')">TEC On/Off</button>
+    </div>
 
-<div id="slider-block-mod">
-<p>Optical Power Modulation Depth Set Point [W]</p>
-<div id="mod-slider"></div>
+    <div style="flex: 0 0 500px">
+        <h2>Control Setpoint Sliders</h2>
+        <div id="slider-block-temp"></div>
+        <p>Temperature Set Point [C]</p>
+        <div id="temp-slider"></div>
+
+        <div id="slider-block-avg"></div>
+        <p>Average Optical Power Set Point [W]</p>
+        <div id="avg-slider"></div>
+
+        <div id="slider-block-mod">
+        <p>Optical Power Modulation Depth Set Point [W]</p>
+        <div id="mod-slider"></div>
+        </div>
+    </div>
+
 </div>
 
 
 <div id="graph-block">
-Laser Driver
+<h2>Laser Driver</h2>
 <div id="graph-laser"></div>
 
-Thermo-electric Cooler
+<h2>Thermo-Electric Cooler</h2>
 <div id="graph-TEC"></div>
 
 </div>
 
+</div>
 
-
+<div>
 <h3>Built with <a href="https://square.github.io/cubism/">Cubism.js</a> and <a href="https://simeydotme.github.io/jQuery-ui-Slider-Pips/">Slider Pips</a></h3>
-
 </div>
 
 <script src="../static/d3.v2.js"></script>
@@ -101,9 +107,12 @@ ws.onmessage = function(event) {
         if (pck["event"] == "connected") {
             document.getElementById("status").innerHTML = pck["message"];
             document.getElementById("status").style.color  = "#006600";
-        } else if (pck["event"] == "set button") {
-			document.getElementById(pck["btn name"]).innerHTML = pck["message"];
-			document.getElementById(pck["btn name"]).className = "button " + pck["color"];
+        } else if (pck["event"] == "set indicator") {
+            document.getElementById(pck["btn name"]).innerHTML = pck["message"];
+            document.getElementById(pck["btn name"]).className = "button " + pck["color"];
+        } else if (pck["event"] == "set control") {
+            document.getElementById(pck["btn name"]).innerHTML = pck["message"];
+            document.getElementById(pck["btn name"]).className = "button_cntr " + pck["color"];
 		} else if (pck["event"] == "set slider") {
             //What do we do to set slider?
             //document.getElementById(pck["slider name"]).slider('value',pck["value"])
@@ -239,7 +248,6 @@ var LaserIAVG = python("LaserIAVG");
     temp = python("temp");
     TECV = python("TECV");
     TECI = python("TECI");
-
 
 d3.select("#graph-block").append("div")
         .attr("class", "rule")

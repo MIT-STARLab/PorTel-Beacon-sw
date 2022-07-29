@@ -1,7 +1,17 @@
 import struct
-AUDIO_PACKET_SIZE = 128
 
-USE_PID = False
+#HERE BEGINS USER CONFIGURABLE PARAMETERS
+POWER_CALIBRATION_MULTIPLIER = 1.77 #Should be 1 nominally. 1.77 for board 1
+
+USE_PID = False #Whether or not to use closed loop control of the optical power
+
+LOG_WAIT = 10 #Seconds between logs
+
+OUTPUT_LIMIT = 1.0 #output optical power limit fraction of full scale, can be turned down for safer testing
+
+#HERE BEGINS PARAMETERS CONSTANT FOR ALL OPERATIONS
+
+AUDIO_PACKET_SIZE = 128
 
 PACKET_SEND_FORMAT = "??ccfff"
 PACKET_RECV_FORMAT = "???cc?cc" + "ffffff" + "H"*AUDIO_PACKET_SIZE + "h"*AUDIO_PACKET_SIZE
@@ -22,12 +32,8 @@ TEC_ENABLE_MESSAGES = {0: "TEC is Off", 1:"TEC is On"}
 
 METRICS_LIST = ['LaserIAVG', 'LaserIPeak', 'LaserPDAVG', 'LaserPDModulation', 'temp', 'TECV', 'TECI']
 
-OUTPUT_LIMIT = 1.0 #output limit fraction of full scale
-
 MAX_OPTICAL_POWER = 5 #Max optical power
 
 WATTS_PER_F = MAX_OPTICAL_POWER #Full scale optical power watts
 
 AMPS_PER_F = 5.9 #Full scale laser drive current
-
-POWER_CALIBRATION_MULTIPLIER = 1.77 #Should be 1 nominally. 1.77 for board 1

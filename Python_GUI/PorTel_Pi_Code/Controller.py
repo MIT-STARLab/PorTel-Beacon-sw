@@ -10,7 +10,12 @@ import time
 import numpy as np
 from constants import PACKET_RECV_FORMAT, PACKET_SEND_FORMAT, PACKET_RECV_KEYS, ALERT_MESSAGES, LASER_MESSAGES,\
     COMM_MESSAGES, POWER_MESSAGES, TEC_ENABLE_MESSAGES, LASER_ENABLE_MESSAGES, METRICS_LIST, OUTPUT_LIMIT,\
-    MAX_OPTICAL_POWER, AUDIO_PACKET_SIZE, USE_PID, POWER_CALIBRATION_MULTIPLIER
+    MAX_OPTICAL_POWER, AUDIO_PACKET_SIZE, USE_PID, POWER_CALIBRATION_MULTIPLIER, LOG_WAIT
+
+import checkPorts
+
+import logging
+import csv
 
 
 class Metric:
@@ -48,8 +53,12 @@ class Metric:
 class Controller:
 
     def __init__(self):
+        self.start = time.time()
         self.last = time.time()
-        self.microcontroller=Microcontroller('COM5') #TBR
+
+        # self.microcontroller=Microcontroller('COM5') #TBR
+        mycom = checkPorts.serial_ports()
+        self.microcontroller=Microcontroller(mycom) #TBR
 
         #PID Controllers
         my_sample_time = 0.05
@@ -76,6 +85,13 @@ class Controller:
             self.metrics[k] = Metric()
 
         self.MessageCounter=0
+        self.PDQueue = []
+
+        #bk added
+        self.filename = './data/update_' + (time.strftime("%Y%m%d_%H%M%S")) + ".csv"      
+        with open(self.filename, 'a', newline='') as data_log:
+            writer = csv.writer(data_log, delimiter=',')
+            writer.writerow(['time'] + METRICS_LIST)
 
     def AddSocket(self, ws):
         self.sockets.append(ws)
@@ -106,7 +122,8 @@ class Controller:
             self.tempSetSend = self.pidTemp(status["temp"])
             #print(self.tempSetSend)
 
-
+        #bk added
+        # print(self.driveOffset, self.driveAmplitude)
 
     #Updates the color and message of the four status buttons
     def UpdateIndicators(self,status):
@@ -133,21 +150,31 @@ class Controller:
         self.metrics["LaserIPeak"].push(mytime, status["LaserIAVG"] + status["LaserIModulation"]/2)
         for k in ("LaserIAVG","temp","TECI","TECV"):
             self.metrics[k].push(mytime, status[k])
+            
+        #bk added
+        # print(status["LaserIAVG"])
+        # logging.error('Sample error log: %.4f', status["LaserIAVG"])    #this works!
+        # print(pdavg, pdamp)   # avg optical power, optical modulation p2p 
 
     #Updates the color and message of the input buttons
     def UpdateButtons(self):
         for ws in self.sockets:
-            ws.set_indicator('laser_switch',LASER_ENABLE_MESSAGES[int(self.laserOn)],int(self.laserOn))
-            ws.set_indicator('TEC_switch', TEC_ENABLE_MESSAGES[int(self.TECOn)], int(self.TECOn))
+            # ws.set_indicator('laser_switch',LASER_ENABLE_MESSAGES[int(self.laserOn)],int(self.laserOn))
+            ws.set_control('laser_switch',LASER_ENABLE_MESSAGES[int(self.laserOn)],3-int(self.laserOn))
+            # ws.set_indicator('TEC_switch', TEC_ENABLE_MESSAGES[int(self.TECOn)], int(self.TECOn))
+            ws.set_control('TEC_switch', TEC_ENABLE_MESSAGES[int(self.TECOn)], 3-int(self.TECOn))
 
 
     #Gets called by GUI message, updates the message that will be sent to the uC
     def ToggleLaser(self):
         self.laserOn= not self.laserOn
         self.UpdateButtons()
+        logging.debug('Laser is %s', self.laserOn)
+
     def ToggleTEC(self):
         self.TECOn = not self.TECOn
         self.UpdateButtons()
+        logging.debug('TEC is %s', self.TECOn)
 
     def TempSet(self):
         return
@@ -161,10 +188,12 @@ class Controller:
         resdict["PDQueue"] = res[-AUDIO_PACKET_SIZE * 2:-AUDIO_PACKET_SIZE]
         resdict["driverQueue"] = res[-AUDIO_PACKET_SIZE:]
 
-        #print(resdict)
+        self.PDQueue = resdict["PDQueue"]
+        self.resdict = resdict
+        # print(resdict)
 
         self.laserOn=resdict["LaserOn"]
-        #print(self.laserOn)
+        # print(self.laserOn)
         self.TECOn=resdict["TECOn"]
         self.UpdateButtons()
 
@@ -173,6 +202,20 @@ class Controller:
         self.StepControllers(resdict)
 
         self.MessageCounter += 1
+
+        #bk added, for logging data, every 10s
+        # print(self.last-self.start)
+        if int(self.last-self.start) % LOG_WAIT == 0:
+            with open(self.filename, 'a', newline='') as data_log:
+                cur_time = [self.last-self.start]
+                cur_metrics = []
+                for k in METRICS_LIST:
+                    cur_metrics.append(self.metrics[k].data[self.MessageCounter])
+                    # print(k, self.metrics[k].data[self.MessageCounter])
+                writer = csv.writer(data_log, delimiter=',')
+                writer.writerow(cur_time + cur_metrics)
+                print(cur_time + cur_metrics)
+
 
 #Microcontroller object adapter from https://github.com/igor47/spaceboard/blob/master/spaceteam.py
 class Microcontroller(object):
@@ -199,7 +242,8 @@ class Microcontroller(object):
         stopbits=1,
         timeout=self.IO_TIMEOUT_SEC)
     if not self._serial.isOpen():
-      raise ValueError("Couldn't open %s" % port)
+        logging.critical("Couldn't open %s" % port)
+        raise ValueError("Couldn't open %s" % port)
 
     # holds reads until we encounter a 0-byte (COBS!!!)
     self._read_buf = [None] * ((struct.calcsize(PACKET_RECV_FORMAT))+300)

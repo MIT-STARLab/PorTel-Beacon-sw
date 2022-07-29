@@ -12,9 +12,15 @@ import numpy as np
 import os
 import json
 
+import time
+import logging
+
 from Controller import Controller
 
-def error(text): print('Error: '+text)
+def error(text): 
+    print('Error: '+text)
+    logging.warning(text)
+
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
@@ -26,6 +32,7 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
 
     def open(self):
         print("WebSocket opened")
+        logging.info("WebSocket opened")
 
     def on_message(self, message):
         #print(message)
@@ -59,6 +66,7 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
 
         else:
             print("Warning: Unprocessed message", message)
+            logging.warning("Unprocessed message", message)
 
         self.controller.GeneralUpdate()
             
@@ -79,7 +87,15 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
         #self.controller.GeneralUpdate()
 
     def set_indicator(self, ind_name,text,color):
-        self.send_data({'event':'set button',
+        # print("button pressed", ind_name, color)
+        self.send_data({'event':'set indicator',
+                        'btn name':ind_name,
+                        'message':text,
+                        'color':'color-%d'%color})
+    
+    def set_control(self, ind_name,text,color):
+        # print("button pressed", ind_name, color)
+        self.send_data({'event':'set control',
                         'btn name':ind_name,
                         'message':text,
                         'color':'color-%d'%color})
@@ -92,18 +108,27 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
 
 
 def make_app():
-    print("making")
+    print("making app...")
     control_telemetry_server = Controller()
-    return tornado.web.Application(
+
+    filename = './data/update_' + (time.strftime("%Y%m%d_%H%M%S")) + ".log"    
+    logging.basicConfig(filename=filename, encoding='utf-8', format='%(asctime)s: %(levelname)s - %(message)s', 
+            datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.DEBUG)
+    logging.info('Made app')
+
+    myapp = tornado.web.Application(
         [
             (r"/", MainHandler),
             (r"/ws", WebSocketHandler, dict(cth = control_telemetry_server)),
         ],
-        static_path=os.path.join(os.path.dirname('static'), 'static'),
+        static_path=os.path.join(os.path.dirname('static'), 'static'), #TODO: auto direct
         autoreload=True,
         )
+
+    return myapp
 
 if __name__ == "__main__":
     app = make_app()
     app.listen(8042)
     tornado.ioloop.IOLoop.current().start()
+
