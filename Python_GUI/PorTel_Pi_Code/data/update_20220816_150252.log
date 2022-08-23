@@ -1,0 +1,63 @@
+08/16/2022 03:02:52 PM: INFO - Made app
+08/16/2022 03:02:52 PM: DEBUG - Using proactor: IocpProactor
+08/16/2022 03:02:57 PM: INFO - 304 GET / (::1) 3.75ms
+08/16/2022 03:02:57 PM: INFO - 101 GET /ws (::1) 1.01ms
+08/16/2022 03:02:57 PM: INFO - WebSocket opened
+08/16/2022 03:03:07 PM: DEBUG - TEC is True
+08/16/2022 03:03:26 PM: DEBUG - Laser is True
+08/16/2022 03:04:30 PM: DEBUG - Laser is False
+08/16/2022 03:04:30 PM: DEBUG - TEC is False
+08/16/2022 03:05:06 PM: DEBUG - TEC is True
+08/16/2022 03:05:08 PM: DEBUG - Laser is True
+08/16/2022 03:07:42 PM: ERROR - Uncaught exception GET /ws (::1)
+HTTPServerRequest(protocol='http', host='localhost:8042', method='GET', uri='/ws', version='HTTP/1.1', remote_ip='::1')
+Traceback (most recent call last):
+  File "C:\Users\nickb\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.9_qbz5n2kfra8p0\LocalCache\local-packages\Python39\site-packages\tornado\websocket.py", line 647, in _run_callback
+    result = callback(*args, **kwargs)
+  File "C:\Users\nickb\Documents\GitHub\PorTel-Beacon-sw\Python_GUI\PorTel_Pi_Code\main.py", line 71, in on_message
+    self.controller.GeneralUpdate()
+  File "C:\Users\nickb\Documents\GitHub\PorTel-Beacon-sw\Python_GUI\PorTel_Pi_Code\Controller.py", line 215, in GeneralUpdate
+    cur_metrics.append(self.metrics[k].data[self.MessageCounter])
+IndexError: index 10175 is out of bounds for axis 0 with size 10000
+08/16/2022 03:07:53 PM: INFO - 304 GET / (::1) 0.99ms
+08/16/2022 03:07:54 PM: INFO - 101 GET /ws (::1) 1.00ms
+08/16/2022 03:07:54 PM: INFO - WebSocket opened
+08/16/2022 03:07:56 PM: DEBUG - Laser is False
+08/16/2022 03:07:56 PM: DEBUG - TEC is False
+08/16/2022 03:08:02 PM: ERROR - Uncaught exception GET /ws (::1)
+HTTPServerRequest(protocol='http', host='localhost:8042', method='GET', uri='/ws', version='HTTP/1.1', remote_ip='::1')
+Traceback (most recent call last):
+  File "C:\Users\nickb\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.9_qbz5n2kfra8p0\LocalCache\local-packages\Python39\site-packages\tornado\websocket.py", line 647, in _run_callback
+    result = callback(*args, **kwargs)
+  File "C:\Users\nickb\Documents\GitHub\PorTel-Beacon-sw\Python_GUI\PorTel_Pi_Code\main.py", line 71, in on_message
+    self.controller.GeneralUpdate()
+  File "C:\Users\nickb\Documents\GitHub\PorTel-Beacon-sw\Python_GUI\PorTel_Pi_Code\Controller.py", line 215, in GeneralUpdate
+    cur_metrics.append(self.metrics[k].data[self.MessageCounter])
+IndexError: index 10587 is out of bounds for axis 0 with size 10000
+08/16/2022 03:08:07 PM: INFO - 304 GET / (::1) 1.00ms
+08/16/2022 03:08:07 PM: INFO - 101 GET /ws (::1) 0.98ms
+08/16/2022 03:08:07 PM: INFO - WebSocket opened
+08/16/2022 03:08:10 PM: DEBUG - TEC is True
+08/16/2022 03:08:12 PM: ERROR - Uncaught exception GET /ws (::1)
+HTTPServerRequest(protocol='http', host='localhost:8042', method='GET', uri='/ws', version='HTTP/1.1', remote_ip='::1')
+Traceback (most recent call last):
+  File "C:\Users\nickb\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.9_qbz5n2kfra8p0\LocalCache\local-packages\Python39\site-packages\tornado\websocket.py", line 647, in _run_callback
+    result = callback(*args, **kwargs)
+  File "C:\Users\nickb\Documents\GitHub\PorTel-Beacon-sw\Python_GUI\PorTel_Pi_Code\main.py", line 71, in on_message
+    self.controller.GeneralUpdate()
+  File "C:\Users\nickb\Documents\GitHub\PorTel-Beacon-sw\Python_GUI\PorTel_Pi_Code\Controller.py", line 215, in GeneralUpdate
+    cur_metrics.append(self.metrics[k].data[self.MessageCounter])
+IndexError: index 10807 is out of bounds for axis 0 with size 10000
+08/16/2022 03:08:28 PM: INFO - 304 GET / (::1) 1.00ms
+08/16/2022 03:08:28 PM: INFO - 101 GET /ws (::1) 0.00ms
+08/16/2022 03:08:28 PM: INFO - WebSocket opened
+08/16/2022 03:08:32 PM: ERROR - Uncaught exception GET /ws (::1)
+HTTPServerRequest(protocol='http', host='localhost:8042', method='GET', uri='/ws', version='HTTP/1.1', remote_ip='::1')
+Traceback (most recent call last):
+  File "C:\Users\nickb\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.9_qbz5n2kfra8p0\LocalCache\local-packages\Python39\site-packages\tornado\websocket.py", line 647, in _run_callback
+    result = callback(*args, **kwargs)
+  File "C:\Users\nickb\Documents\GitHub\PorTel-Beacon-sw\Python_GUI\PorTel_Pi_Code\main.py", line 71, in on_message
+    self.controller.GeneralUpdate()
+  File "C:\Users\nickb\Documents\GitHub\PorTel-Beacon-sw\Python_GUI\PorTel_Pi_Code\Controller.py", line 215, in GeneralUpdate
+    cur_metrics.append(self.metrics[k].data[self.MessageCounter])
+IndexError: index 11002 is out of bounds for axis 0 with size 10000

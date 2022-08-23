@@ -1,0 +1,10 @@
+08/16/2022 02:57:28 PM: INFO - Made app
+08/16/2022 02:57:28 PM: DEBUG - Using proactor: IocpProactor
+08/16/2022 02:57:33 PM: INFO - 304 GET / (::1) 3.99ms
+08/16/2022 02:57:33 PM: INFO - 101 GET /ws (::1) 0.00ms
+08/16/2022 02:57:33 PM: INFO - WebSocket opened
+08/16/2022 02:57:38 PM: DEBUG - TEC is True
+08/16/2022 02:57:47 PM: DEBUG - Laser is True
+08/16/2022 02:57:59 PM: DEBUG - TEC is False
+08/16/2022 02:57:59 PM: DEBUG - Laser is False
+08/16/2022 02:58:23 PM: INFO - C:\Users\nickb\Documents\GitHub\PorTel-Beacon-sw\Python_GUI\PorTel_Pi_Code\constants.py modified; restarting server

@@ -58,7 +58,9 @@ class Controller:
 
         # self.microcontroller=Microcontroller('COM5') #TBR
         mycom = checkPorts.serial_ports()
-        self.microcontroller=Microcontroller(mycom) #TBR
+        print(mycom)
+        #If mycom empty then check connection
+        self.microcontroller=Microcontroller(mycom[0]) #TBR
 
         #PID Controllers
         my_sample_time = 0.05

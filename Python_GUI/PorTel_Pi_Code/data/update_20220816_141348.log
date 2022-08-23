@@ -1,0 +1,29 @@
+08/16/2022 02:13:48 PM: INFO - Made app
+08/16/2022 02:13:48 PM: DEBUG - Using proactor: IocpProactor
+08/16/2022 02:14:04 PM: INFO - 200 GET / (::1) 62.22ms
+08/16/2022 02:14:05 PM: INFO - 200 GET /static/d3.v2.js (::1) 854.80ms
+08/16/2022 02:14:05 PM: INFO - 200 GET /static/cubism.v1.js (::1) 20.94ms
+08/16/2022 02:14:05 PM: INFO - 200 GET /static/style.css (::1) 30.58ms
+08/16/2022 02:14:05 PM: INFO - 200 GET /static/jquery-ui-slider-pips.css (::1) 37.56ms
+08/16/2022 02:14:05 PM: INFO - 200 GET /static/jquery-ui-1.12.1.custom/jquery-ui.css (::1) 48.20ms
+08/16/2022 02:14:05 PM: INFO - 200 GET /static/jquery-ui-1.12.1.custom/jquery-ui.js (::1) 77.86ms
+08/16/2022 02:14:05 PM: INFO - 200 GET /static/jquery-ui-1.12.1.custom/external/jquery/jquery.js (::1) 65.22ms
+08/16/2022 02:14:05 PM: INFO - 200 GET /static/jquery-ui-slider-pips.js (::1) 87.02ms
+08/16/2022 02:14:05 PM: INFO - 101 GET /ws (::1) 1.01ms
+08/16/2022 02:14:05 PM: INFO - WebSocket opened
+08/16/2022 02:14:06 PM: INFO - 200 GET /static/jquery-ui-1.12.1.custom/images/ui-bg_highlight-soft_100_f6f6f6_1x100.png (::1) 8.98ms
+08/16/2022 02:14:49 PM: DEBUG - TEC is True
+08/16/2022 02:15:21 PM: DEBUG - Laser is True
+08/16/2022 02:17:18 PM: INFO - 200 GET /static/jquery-ui-1.12.1.custom/images/ui-bg_highlight-soft_25_0073ea_1x100.png (::1) 12.97ms
+08/16/2022 02:17:18 PM: INFO - 200 GET /static/jquery-ui-1.12.1.custom/images/ui-bg_glass_65_ffffff_1x400.png (::1) 21.94ms
+08/16/2022 02:17:18 PM: WARNING - 404 GET /favicon.ico (::1) 21.94ms
+08/16/2022 02:17:48 PM: ERROR - Uncaught exception GET /ws (::1)
+HTTPServerRequest(protocol='http', host='localhost:8042', method='GET', uri='/ws', version='HTTP/1.1', remote_ip='::1')
+Traceback (most recent call last):
+  File "C:\Users\nickb\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.9_qbz5n2kfra8p0\LocalCache\local-packages\Python39\site-packages\tornado\websocket.py", line 647, in _run_callback
+    result = callback(*args, **kwargs)
+  File "C:\Users\nickb\Documents\GitHub\PorTel-Beacon-sw\Python_GUI\PorTel_Pi_Code\main.py", line 71, in on_message
+    self.controller.GeneralUpdate()
+  File "C:\Users\nickb\Documents\GitHub\PorTel-Beacon-sw\Python_GUI\PorTel_Pi_Code\Controller.py", line 215, in GeneralUpdate
+    cur_metrics.append(self.metrics[k].data[self.MessageCounter])
+IndexError: index 10022 is out of bounds for axis 0 with size 10000

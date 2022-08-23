@@ -1,7 +1,11 @@
 import struct
 
 #HERE BEGINS USER CONFIGURABLE PARAMETERS
-POWER_CALIBRATION_MULTIPLIER = 1.77 #Should be 1 nominally. 1.77 for board 1
+POWER_CALIBRATION_MULTIPLIER = 7.44
+# Should be 1 nominally.
+# 1.77 for board 1
+# 1.86 for board 2
+# 7.44 for board 3 (why is it so different? I don't know)
 
 USE_PID = False #Whether or not to use closed loop control of the optical power
 
